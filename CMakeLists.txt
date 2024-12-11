@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(rimpowder LANGUAGES CXX CUDA)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 add_executable(rimpowder 
     src/main.cu
     src/deps_impl.cu
