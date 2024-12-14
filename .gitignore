@@ -6,3 +6,7 @@ CMakeSettings.json
 vs2022/*
 !vs2022/vs2022.sln
 !vs2022/vs2022.vcxproj
+build/*
+.cache/
+.vscode/
+*build*

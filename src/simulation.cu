@@ -30,6 +30,17 @@ uint32_t Particle::to_rgba() const {
 }
 
 
+/**
+ * \brief Simulation constructor
+ *
+ *  This function loads simultaion setup from file named in " types_filename".
+ *  it then takes all pixel values and convert them into simulation types.
+ *  the simulation state is saved into the x_pixels by y_pixels buffer on
+ *  the device.
+ *
+ * \param types_filename simulation file path to load.
+ */
+
 Simulation::Simulation(std::string& types_filename) {
     int xs, ys, channels;
     unsigned char* char_buffer = stbi_load(types_filename.c_str(), &xs, &ys, &channels, 4);
@@ -42,7 +53,7 @@ Simulation::Simulation(std::string& types_filename) {
     dims = int2{chunks_x, chunks_y};
 
     Chunk* host_chunks = new Chunk[chunks_x * chunks_y];
-    
+
     for(int y = 0; y < ys; y++) {
         for(int x = 0; x < xs; x++) {
             uint32_t color = color_buffer[y*xs+x];
@@ -59,11 +70,20 @@ Simulation::Simulation(std::string& types_filename) {
     delete[] char_buffer;
 }
 
+/**
+ * \brief Function saving current state of the simulation
+ *
+ * This function dumps the simulation state into given file.
+ * it does convert chung data into pixel values defined in
+ * simulation.h
+ *
+ * \param filename simulation file path to save simulation state.
+ */
 void Simulation::save(std::string& filename) const {
     unsigned xs = dims.x * CHUNK_SIZE;
     unsigned ys = dims.y * CHUNK_SIZE;
     uint32_t* color_buffer = new uint32_t[xs*ys];
-    
+
     Chunk* host_chunks = new Chunk[dims.x * dims.y];
     checkCudaErrors(cudaMemcpy(host_chunks, dev_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyDeviceToHost));
 

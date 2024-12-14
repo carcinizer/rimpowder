@@ -1,9 +1,12 @@
-cmake_minimum_required(VERSION 3.10)
-project(rimpowder LANGUAGES CXX CUDA)
+cmake_minimum_required(VERSION 3.17)
+project(rimpowder LANGUAGES C CXX CUDA)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(rimpowder 
+add_subdirectory(dummy_state_creator)
+
+#include(cmakeScripts/setupNVCC.cmake)
+add_executable(rimpowder
     src/main.cu
     src/deps_impl.cu
     src/simulation.cu
@@ -11,6 +14,11 @@ add_executable(rimpowder
 
 #target_compile_options(rimpowder PUBLIC cxx_std_20)
 target_include_directories(rimpowder PUBLIC include deps/stb)
+if(MICHAL_INCLUDES)
+    message("Mine cmake is on...")
+    target_include_directories(rimpowder PRIVATE ../cuda-samples/common)
+endif()
+
 target_link_libraries(rimpowder PUBLIC m) # libm, required by stb_image
 
 # Fix clangd LSP
