@@ -70,6 +70,22 @@ Simulation::Simulation(std::string& types_filename) {
     delete[] char_buffer;
 }
 
+
+
+/**
+ * \brief Function calculating simulation steps
+ *
+ * This function calculates every step of simulation.
+ * 
+ * 
+ *
+ * 
+ */
+
+void Simulation::step(){
+
+}
+
 /**
  * \brief Function saving current state of the simulation
  *
