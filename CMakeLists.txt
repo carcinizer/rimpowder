@@ -14,10 +14,17 @@ add_executable(rimpowder
 
 #target_compile_options(rimpowder PUBLIC cxx_std_20)
 target_include_directories(rimpowder PUBLIC include deps/stb)
+
 if(MICHAL_INCLUDES)
     message("Mine cmake is on...")
     target_include_directories(rimpowder PRIVATE ../cuda-samples/common)
 endif()
+
+option(USE_MY_PATH "Path for CUDA samples" OFF)
+if(USE_MY_PATH)
+    target_include_directories(rimpowder PUBLIC include ../cuda-samples/Common)
+endif(USE_MY_PATH)
+unset(USE_MY_PATH CACHE)
 
 target_link_libraries(rimpowder PUBLIC m) # libm, required by stb_image
 
