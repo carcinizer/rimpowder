@@ -82,8 +82,21 @@ Simulation::Simulation(std::string& types_filename) {
  * 
  */
 
-void Simulation::step(){
+void Simulation::step(uint32_t time_ms){
+    unsigned xs = dims.x * CHUNK_SIZE;
+    unsigned ys = dims.y * CHUNK_SIZE;
+    uint32_t* color_buffer = new uint32_t[xs*ys];
 
+    Chunk* host_chunks = new Chunk[dims.x * dims.y];
+    checkCudaErrors(cudaMemcpy(host_chunks, dev_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyDeviceToHost));
+
+    for(int y = 0; y < ys; y++) {
+        for(int x = 0; x < xs; x++) {
+            int2 coord{x,y};
+            uint32_t color = get_particle(host_chunks, dims, coord).to_rgba();
+            color_buffer[y*xs+x] = color;
+        }
+    }
 }
 
 /**
@@ -111,7 +124,7 @@ void Simulation::save(std::string& filename) const {
         }
     }
 
-    stbi_write_png(filename.c_str(), xs, ys, 4, color_buffer, xs);
+    stbi_write_png(filename.c_str(), xs, ys, 4, color_buffer, xs*sizeof(uint32_t));
 
     delete[] host_chunks;
     delete[] color_buffer;

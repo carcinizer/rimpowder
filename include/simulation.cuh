@@ -34,7 +34,7 @@ private:
 public:
     Simulation(std::string& types_filename);
     
-    void step(); 
+    void step(uint32_t time_ms); 
     void save(std::string& filename) const;
 
     ~Simulation();
