@@ -7,7 +7,7 @@ constexpr size_t CHUNK_SIZE = 16;
 
 
 enum class ParticleType : uint8_t {
-    VOID = 0,
+    VOID_ = 0,
     SAND = 1,
     WALL = 2
 };

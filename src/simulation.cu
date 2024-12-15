@@ -13,7 +13,7 @@ Particle::Particle(uint32_t rgba) {
             type = ParticleType::WALL;
             break;
         default:
-            type = ParticleType::VOID;
+            type = ParticleType::VOID_;
             break;
     }
 }

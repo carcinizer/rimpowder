@@ -1,32 +1,39 @@
 cmake_minimum_required(VERSION 3.17)
 project(rimpowder LANGUAGES C CXX CUDA)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(dummy_state_creator)
+include(cmakeScripts/printList.cmake)
 
-#include(cmakeScripts/setupNVCC.cmake)
-add_executable(rimpowder
-    src/main.cu
-    src/deps_impl.cu
-    src/simulation.cu
+file( GLOB_RECURSE
+    RIMPOWDER_SOURCES
+    CONFIGURE_DEPENDS src/*.cpp src/*.cu src/*.c
 )
 
-#target_compile_options(rimpowder PUBLIC cxx_std_20)
-target_include_directories(rimpowder PUBLIC include deps/stb)
+add_subdirectory(dummy_state_creator)
+add_subdirectory(deps/SDL)
+add_executable(rimpowder ${RIMPOWDER_SOURCES})
 
+printPrettyList(RIMPOWDER_SOURCES "Sources in target:")
+
+# I use cmake "cmake -B build -DMICHAL_INCLUDES=ON" command.
 if(MICHAL_INCLUDES)
-    message("Mine cmake is on...")
+message("Mine cmake is on...")
     target_include_directories(rimpowder PRIVATE ../cuda-samples/common)
+else()
+    message("note there is CMAKE option here to include cuda-samples directory with")
+    message("all includes and freeglut.lib.")
 endif()
 
-option(USE_MY_PATH "Path for CUDA samples" OFF)
-if(USE_MY_PATH)
-    target_include_directories(rimpowder PUBLIC include ../cuda-samples/Common)
-endif(USE_MY_PATH)
-unset(USE_MY_PATH CACHE)
+printPrettyList(SDL2_INCLUDE_DIRS "SDL2_INCLUDE")
+printPrettyList(SDL2_INCLUDE_DIRS "SDL2_INCLUDE")
 
-target_link_libraries(rimpowder PUBLIC m) # libm, required by stb_image
+target_include_directories(rimpowder PUBLIC include/ deps/stb)
+target_include_directories(rimpowder PRIVATE deps/SDL/include)
+#set the SDL window implementation to true ("rn its the only one existing")
+target_compile_definitions(rimpowder PUBLIC SDL_IMPL=true)
+target_link_libraries(rimpowder PRIVATE SDL3-shared)
+# libm, required by stb_image
+target_link_libraries(rimpowder PUBLIC m)
 
 # Fix clangd LSP
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
