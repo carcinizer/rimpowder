@@ -47,9 +47,23 @@ void draw_shit(buffor_drawable_ptr<uint32_t>& buff, size_t xSize, disp::Window& 
 
 
 int main(int argc, char** argv) {
+    if(argc!=2){
+        std::cout <<"Wrong number of arguments\n" <<std::endl;
+        return 0;
+    }
+    std::string sim_output = "sim_output.png";
+    std::string arg_str = argv[1];
+
+    std::cout <<"Starting simulation\n" <<std::endl;
+
     checkCudaErrors(cudaSetDevice(0));
 
     Simulation sim(arg_str);
+
+
+    kernel<<<1,1>>>();
+
+    sim.save(sim_output);
 
 
     {
