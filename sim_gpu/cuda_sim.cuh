@@ -9,7 +9,7 @@
 #include <memory.h>
 #include <memory>
 #include <vector>
-#include <time.h> 
+#include <time.h>
 
 
 
@@ -28,8 +28,10 @@ class GPUsim{
         int device_;
     public:
         GPUsim(float viscosity, float density, float max_time, uint32_t max_it, uint32_t particle_num_);
-        __host__ __device__ void simStep(int i);
-        __device__ void sim_kernel();
+        __host__ void simStep(int i);
+        friend __global__ void sim_kernel(GPUsim&);
         uint32_t getParticleNum();
         ~GPUsim(){};
+        __host__ void collect();
+        __host__ Sand& operator[](size_t idx);
 };

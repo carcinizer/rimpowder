@@ -31,7 +31,7 @@ class Sand: public sim_element{
     private:
     uint16_t x_,y_, x0_, y0_;
     float time_;
-   
+
     float Fxw_, v0x_, vx_, ax_; // values for x axis movement
     float Fyw_, v0y_, vy_, ay_; // values for y axis movement
     // values for resistance calcuations
@@ -39,7 +39,7 @@ class Sand: public sim_element{
     float mass_;
     public:
     Sand(uint16_t x,uint16_t y);
-    __device__ void calculateNextLocation(float time_step, float density, float viscosity);
+    __device__ __host__ void calculateNextLocation(float time_step, float density, float viscosity);
     void getPosition(uint16_t &x, uint16_t &y);
     void setMovementParam(float velocity, float acceleration);
     float getVelocity();

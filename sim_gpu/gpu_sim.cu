@@ -23,7 +23,7 @@ Fxw_ = 0;
 Fyw_ = 0;
 }
 //case appropriate for gravity
-__device__ void Sand::calculateNextLocation(float time_step, float density, float viscosity){
+__device__ __host__ void Sand::calculateNextLocation(float time_step, float density, float viscosity){
     /* https://pl.wikipedia.org/wiki/Op%C3%B3r_aero(hydro)dynamiczny
     Re = (p*v*2r)/n
     if Re<1
@@ -47,8 +47,8 @@ __device__ void Sand::calculateNextLocation(float time_step, float density, floa
 
     //x_ = x0_ + (uint16_t)(v0x_*time_step) + (uint16_t)(ax_*time_*time_/2);
     //y_ = y0_ + (uint16_t)(v0y_*time_step) + (uint16_t)(ay_*time_*time_/2);
-    
-    
+
+
     //Hydro/Areodynamic resistance calcuations
     Re = density*v_w*2*R_/viscosity;
     // split resistance to x and y components and

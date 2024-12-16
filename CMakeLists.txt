@@ -11,6 +11,7 @@ file( GLOB_RECURSE
 
 add_subdirectory(dummy_state_creator)
 add_subdirectory(deps/SDL)
+add_subdirectory(sim_gpu)
 add_executable(rimpowder ${RIMPOWDER_SOURCES})
 
 printPrettyList(RIMPOWDER_SOURCES "Sources in target:")

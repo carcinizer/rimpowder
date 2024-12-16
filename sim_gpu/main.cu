@@ -8,7 +8,7 @@
 #include <memory.h>
 #include <memory>
 #include <vector>
-#include <time.h> 
+#include <time.h>
 
 
 typedef struct timespec app_timer_t;
@@ -22,7 +22,7 @@ void elapsed_time(app_timer_t start, app_timer_t stop)
 		etime);
 }
 
-__global__
+__host__
 static void sim_sand_kernel(GPUsim &sim){
     sim.simStep(1);
     //if(i<sim.getParticleNum()){
@@ -40,10 +40,16 @@ int main(){
 
     //float time_step = (float)MAX_TIME/SIM_STEPS;
     float n = 0.0000107; //dynamic viscosity of liquid  in Pa*s
-    float p = 1;// Density of the liquid in kg/m3 
+    float p = 1;// Density of the liquid in kg/m3
     GPUsim testSim(n,p,
     MAX_TIME,SIM_STEPS,SIM_SIZE);
     //checkCudaErrors(cudaSetDevice(0));
+    std::cout<<"before:" << std::endl;
+    testSim[1].printPosition();
+    sim_sand_kernel(testSim);
+    testSim.collect();
+    std::cout<<"after:" << std::endl;
+    testSim[1].printPosition();
 
     //checkCudaErrors(cudaMalloc((void**)&particle_vec, (particle_vec.size()-1)*sizeof(Sand)));
     //checkCudaErrors(cudaMemcpy(particle_vec_p, particle_vec, (particle_vec.size()-1)*sizeof(Sand), cudaMemcpyHostToDevice));
