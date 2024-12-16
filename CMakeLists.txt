@@ -26,7 +26,7 @@ endif()
 
 printPrettyList(SDL2_INCLUDE_DIRS "SDL2_INCLUDE")
 printPrettyList(SDL2_INCLUDE_DIRS "SDL2_INCLUDE")
-
+target_include_directories(rimpowder PUBLIC ../cuda-samples/Common)
 target_include_directories(rimpowder PUBLIC include/ deps/stb)
 target_include_directories(rimpowder PRIVATE deps/SDL/include)
 #set the SDL window implementation to true ("rn its the only one existing")
