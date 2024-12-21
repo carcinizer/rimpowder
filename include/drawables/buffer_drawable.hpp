@@ -1,5 +1,6 @@
 #pragma once
 
+#include "primitives/vec2.hpp"
 #include <cstddef>
 #include <drawables/drawable.hpp>
 #include <disp/window.hpp>
@@ -38,6 +39,9 @@ class buffor_drawable: public disp::drawable {
     }
 
     std::mutex& get_mtx() {return mtx;}
+
+    vec2<uint64_t> getAABB() {return {x, y}; }
+
     buff_T** get() { return &buff; }
 
 };

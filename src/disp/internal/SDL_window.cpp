@@ -49,7 +49,7 @@ namespace disp{
 
 
     void window_impl::draw_buffer(int x_pos, int y_pos, int x_size, int y_size, void* buff, uint32_t stride) {
-      SDL_FRect tx_rect{.x= (float)x_pos, .y= (float)y_pos, .w= (float)x_size, .h= (float)y_size};
+      SDL_FRect tx_rect{.x= 0, .y= 0, .w= (float)x_size, .h= (float)y_size};
       SDL_Texture* texture = SDL_CreateTexture(
           renderer,
           SDL_PIXELFORMAT_RGBA32,

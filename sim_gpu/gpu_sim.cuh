@@ -4,6 +4,7 @@
 #include <string>
 #include <math.h>
 #include <cmath>
+#include <cuda_runtime.h>
 
 #define K 512
 #define SIM_SIZE 100000
@@ -20,7 +21,7 @@ class sim_element{
 
     public:
     //virtual void calculateNextLocation(float time_step, float density, float viscosity) = 0;
-    virtual void getPosition(uint16_t &x, uint16_t &y) = 0;
+    virtual void getPosition(float &x, float &y) = 0;
     virtual void setMovementParam(float velocity, float acceleration) = 0;
     virtual float getVelocity() = 0;
     virtual float getAcceleration() = 0;
@@ -29,8 +30,7 @@ class sim_element{
 // sand is a sphere
 class Sand: public sim_element{
     private:
-    uint16_t x_,y_, x0_, y0_;
-    float time_;
+    float x_,y_, x0_, y0_;
 
     float Fxw_, v0x_, vx_, ax_; // values for x axis movement
     float Fyw_, v0y_, vy_, ay_; // values for y axis movement
@@ -39,8 +39,10 @@ class Sand: public sim_element{
     float mass_;
     public:
     Sand(uint16_t x,uint16_t y);
-    __device__ __host__ void calculateNextLocation(float time_step, float density, float viscosity);
-    void getPosition(uint16_t &x, uint16_t &y);
+    __device__ __host__ void calculateNextLocation(double time_step, float density, float viscosity);
+    void getPosition(float &x, float &y);
+    __host__ __device__ float getX();
+    __host__ __device__ float getY();
     void setMovementParam(float velocity, float acceleration);
     float getVelocity();
     float getAcceleration();

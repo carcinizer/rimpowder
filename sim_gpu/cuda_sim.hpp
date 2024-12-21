@@ -10,6 +10,12 @@
 #include <memory>
 #include <vector>
 #include <time.h>
+#include <chrono>
+
+
+#include "drawables/buffer_drawable.hpp"
+
+class simulation_pixel_adapter;
 
 class GPUsim{
     private:
@@ -24,9 +30,10 @@ class GPUsim{
         int device_;
     public:
         GPUsim(float viscosity, float density, float max_time, uint32_t max_it, uint32_t particle_num_, const std::chrono::steady_clock::time_point& start_point);
-        __host__ void simStep(int i, float delta_time_s);
+        __host__ void simStep(int i, double delta_time_s);
         friend __global__ void sim_kernel(GPUsim&);
         uint32_t getParticleNum();
+        simulation_pixel_adapter get_display_adapter(buffor_drawable_ptr<uint32_t>&);
 
         ~GPUsim(){};
         __host__ void collect();
@@ -34,5 +41,13 @@ class GPUsim{
 };
 
 class simulation_pixel_adapter {
-    simulation_pixel_adapter(Sand* hardware_particles, buffor_drawable<uint32_t> buffor);
+    private:
+        Sand*& hardware_ptr;
+        uint64_t hardware_particles_len;
+        buffor_drawable_ptr<uint32_t> pix_buff;
+        uint32_t* gpu_pix_buff;
+    public:
+        simulation_pixel_adapter(Sand*& hardware_particles, buffor_drawable_ptr<uint32_t>& buffor, uint64_t hardware_particles_len);
+        void set_hwd_ptr(Sand*& ptr);
+        void actuate();
 };
