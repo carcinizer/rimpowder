@@ -4,7 +4,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-add_executable(sim_gpu main.cpp gpu_sim.cu cuda_sim.cu)
+add_executable(sim_gpu main.cu gpu_sim.cu cuda_sim.cu)
 
 target_include_directories(sim_gpu PRIVATE
   ../sim_gpu
