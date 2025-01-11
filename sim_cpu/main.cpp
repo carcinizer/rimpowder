@@ -5,8 +5,8 @@
 #include <time.h> 
 
 #define sim_size 100000
-#define sim_steps 10
-#define max_time 3 //time over 3.5 causes some oscilations for air density and viscosity
+#define sim_steps 10000
+#define max_time 4 //time over 3.5 causes some oscilations for air density and viscosity
 
 typedef struct timespec app_timer_t;
 #define timer(t_ptr) clock_gettime(CLOCK_MONOTONIC, t_ptr)
