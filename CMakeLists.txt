@@ -9,6 +9,7 @@ file( GLOB_RECURSE
     CONFIGURE_DEPENDS src/*.cpp src/*.cu src/*.c
 )
 
+add_subdirectory(project_window_ctx)
 add_subdirectory(dummy_state_creator)
 add_subdirectory(deps/SDL)
 add_subdirectory(sim_gpu)
@@ -31,8 +32,7 @@ target_include_directories(rimpowder PUBLIC ../cuda-samples/Common)
 target_include_directories(rimpowder PUBLIC include/ deps/stb)
 target_include_directories(rimpowder PRIVATE deps/SDL/include)
 #set the SDL window implementation to true ("rn its the only one existing")
-target_compile_definitions(rimpowder PUBLIC SDL_IMPL=true)
-target_link_libraries(rimpowder PRIVATE SDL3-shared)
+target_link_libraries(rimpowder PRIVATE rimpowder_graphic)
 # libm, required by stb_image
 target_link_libraries(rimpowder PUBLIC m)
 

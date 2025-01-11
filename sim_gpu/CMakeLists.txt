@@ -15,12 +15,12 @@ target_include_directories(sim_gpu PRIVATE
 
 target_include_directories(sim_gpu PUBLIC ../../cuda-samples/Common)
 target_compile_definitions(sim_gpu PUBLIC SDL_IMPL=true)
-target_link_libraries(sim_gpu PUBLIC m SDL3-shared)
-target_sources(sim_gpu PRIVATE
-  ../src/disp/window.cpp
-  ../src/disp/internal/SDL_window.cpp
-  ../src/drawable/buffer_drawable.cpp
-)
+target_link_libraries(sim_gpu PUBLIC m rimpowder_graphic)
+# target_sources(sim_gpu PRIVATE
+#   ../src/disp/window.cpp
+#   ../src/disp/internal/SDL_window.cpp
+#   ../src/drawable/buffer_drawable.cpp
+# )
 
 # Fix clangd LSP
 set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)

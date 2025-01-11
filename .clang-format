@@ -1,0 +1,14 @@
+﻿---
+BasedOnStyle: Chromium
+AlignTrailingComments: 'false'
+CompactNamespaces: 'true'
+IndentWidth: '2'
+NamespaceIndentation: All
+ObjCBlockIndentWidth: '2'
+ReflowComments: 'true'
+TabWidth: '2'
+UseTab: Never
+ColumnLimit: 100
+EmptyLineBeforeAccessModifier: Always
+AlignAfterOpenBracket: AlwaysBreak
+...

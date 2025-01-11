@@ -50,7 +50,7 @@ static void sim_sand_kernel_iterative(GPUsim &sim, bool init_time){
 
 __host__
 static void sim_sand_kernel(GPUsim &sim, float time_step){
-   
+
     sim.simStep(1, time_step);
 
 }
@@ -72,10 +72,7 @@ int main(int argc, char *argv[]){
     testSim[1].printPosition();
 
 
-
-
-
-    
+    sim_sand_kernel_iterative(testSim, true);
     if(argc == 1){
         std::cout << "Running simulation without GUI" << std::endl;
 
@@ -101,9 +98,6 @@ int main(int argc, char *argv[]){
         auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(resolution.x, resolution.y);
         auto adapter = testSim.get_display_adapter(pix_art);
         main_wnd.add_drawable(pix_art);
-        
-        int dummy;
-        std::cin >> dummy;
 
         for(int idx = 0; idx < 1000; idx ++) {
             main_wnd.update();
@@ -119,6 +113,8 @@ int main(int argc, char *argv[]){
 
            main_wnd.draw();
         }
+    } else {
+        std::cout << "could not deduce simulation parameters -gui?" << std::endl;
     }
     testSim.collect();
     std::cout<<"after:" << std::endl;

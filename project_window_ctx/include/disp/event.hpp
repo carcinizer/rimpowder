@@ -1,14 +1,13 @@
 #pragma once
 
-#include "primitives/vec2.hpp"
 #include <memory>
-namespace disp {
+#include "primitives/vec2.hpp"
 
-namespace event {
+namespace disp { namespace event {
   enum event_type {
     KEYBOARD,
     MOUSE,
-    //RESIZE,
+    // RESIZE,
     CLOSE,
     NONE,
   };
@@ -19,17 +18,13 @@ namespace event {
   };
 
   /**
-  * \brief Mouse event structure.
-  */
+   * \brief Mouse event structure.
+   */
   struct mouse_event {
-    enum mouse_state {
-      down, up
-    };
+    enum mouse_state { down, up };
     //! What state is button, that generated the event
     mouse_state state;
-    enum mouse_button {
-      left, middle, right0
-    };
+    enum mouse_button { left, middle, right0 };
     //! Determines what mouse button generated event.
     mouse_button button;
     //! Position relative to the window (upper-left corner?).
@@ -47,12 +42,11 @@ namespace event {
       close_event close_ev;
     } event_inner_t;
 
-    //event_t(event_t&& ) = default;
-    //event_t(const event_type& t, event_inner_t& ev): type(t), ev(ev) {};
+    // event_t(event_t&& ) = default;
+    // event_t(const event_type& t, event_inner_t& ev): type(t), ev(ev)
+    // {};
     event_type type;
     event_inner_t ev;
   };
   using event_ptr_t = std::shared_ptr<event_t>;
-}
-
-};
+}};  // namespace disp::event
