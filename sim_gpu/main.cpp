@@ -7,7 +7,9 @@
 #include "primitives/vec2.hpp"
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <cuda_runtime_api.h>
+#include <iostream>
 #include <iterator>
 #include <memory.h>
 #include <memory>
@@ -48,7 +50,7 @@ static void sim_sand_kernel(GPUsim &sim, bool init_time){
 
 Sand *particle_vec_p;
 
-int main(){
+int main(int argc, char *argv[]){
    // Sand particle_vec_p[sim_size];
    //     cudaEvent_t start, stop;
 
@@ -56,39 +58,50 @@ int main(){
     //float time_step = (float)MAX_TIME/SIM_STEPS;
     float n = 0.0000107; //dynamic viscosity of liquid  in Pa*s
     float p = 1;// Density of the liquid in kg/m3
+    char gui_en[] = "-gui";
     GPUsim testSim(n,p,
     MAX_TIME,SIM_STEPS,SIM_SIZE, std::chrono::steady_clock::now());
     //checkCudaErrors(cudaSetDevice(0));
     std::cout<<"before:" << std::endl;
     testSim[1].printPosition();
 
-    vec2<int> resolution{1280, 720};
-    disp::Window main_wnd("test fizyki", resolution);
-    if(main_wnd.initialise()) {
-        return -1;
-    }
 
-    auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(resolution.x, resolution.y);
-    auto adapter = testSim.get_display_adapter(pix_art);
-    main_wnd.add_drawable(pix_art);
 
-    int dummy;
-    std::cin >> dummy;
+    //int dummy;
+    //std::cin >> dummy;
 
-    sim_sand_kernel(testSim, true);
-    for(int idx = 0; idx < 1000; idx ++) {
-        main_wnd.update();
-        if(main_wnd.should_close())
-            break;
-        main_wnd.clear(0x0);
-        sim_sand_kernel(testSim, false);
+    
+    if(argc == 1){
+        std::cout << "Running simulation without GUI" << std::endl;
+        for(int idx = 0; idx < 1000; idx ++) {
+            sim_sand_kernel(testSim, true);
+        }
+    }else if(argc > 1 && strcmp(argv[1],gui_en)){
 
-        adapter.actuate();
+        vec2<int> resolution{1280, 720};
+        disp::Window main_wnd("test fizyki", resolution);
+        if(main_wnd.initialise()) {
+            return -1;
+        }
 
-        testSim.collect();
-        testSim[1].printPosition();
+        auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(resolution.x, resolution.y);
+        auto adapter = testSim.get_display_adapter(pix_art);
+        main_wnd.add_drawable(pix_art);
+        
+        for(int idx = 0; idx < 1000; idx ++) {
+            main_wnd.update();
+            if(main_wnd.should_close())
+                break;
+            main_wnd.clear(0x0);
+           sim_sand_kernel(testSim, false);
 
-        main_wnd.draw();
+            adapter.actuate();
+
+           testSim.collect();
+           testSim[1].printPosition();
+
+           main_wnd.draw();
+        }
     }
     testSim.collect();
     std::cout<<"after:" << std::endl;
