@@ -28,7 +28,7 @@ void elapsed_time(app_timer_t start, app_timer_t stop)
 }
 
 __host__
-static void sim_sand_kernel(GPUsim &sim, bool init_time){
+static void sim_sand_kernel_iterative(GPUsim &sim, bool init_time){
     using std::chrono::steady_clock;
     using std::chrono::duration_cast;
     using std::chrono::seconds;
@@ -48,35 +48,49 @@ static void sim_sand_kernel(GPUsim &sim, bool init_time){
     //}
 }
 
+__host__
+static void sim_sand_kernel(GPUsim &sim, float time_step){
+   
+    sim.simStep(1, time_step);
+
+}
+
 Sand *particle_vec_p;
 
 int main(int argc, char *argv[]){
    // Sand particle_vec_p[sim_size];
-   //     cudaEvent_t start, stop;
-
-
-    //float time_step = (float)MAX_TIME/SIM_STEPS;
+    cudaEvent_t start, stop;
+    float time;
+    float time_step = (float)MAX_TIME/SIM_STEPS;
     float n = 0.0000107; //dynamic viscosity of liquid  in Pa*s
     float p = 1;// Density of the liquid in kg/m3
     char gui_en[] = "-gui";
     GPUsim testSim(n,p,
     MAX_TIME,SIM_STEPS,SIM_SIZE, std::chrono::steady_clock::now());
-    //checkCudaErrors(cudaSetDevice(0));
+    checkCudaErrors(cudaSetDevice(0));
     std::cout<<"before:" << std::endl;
     testSim[1].printPosition();
 
 
 
-    //int dummy;
-    //std::cin >> dummy;
+
 
     
     if(argc == 1){
         std::cout << "Running simulation without GUI" << std::endl;
-        for(int idx = 0; idx < 1000; idx ++) {
-            sim_sand_kernel(testSim, true);
+
+        checkCudaErrors( cudaEventCreate(&start) );
+        checkCudaErrors( cudaEventCreate(&stop) );
+        checkCudaErrors( cudaEventRecord(start, 0) );
+        for(int k = 0; k<SIM_STEPS; k++){
+            sim_sand_kernel(testSim, time_step);
         }
-    }else if(argc > 1 && strcmp(argv[1],gui_en)){
+        checkCudaErrors( cudaEventRecord(stop, 0) );
+        checkCudaErrors( cudaEventSynchronize(stop) );
+        checkCudaErrors( cudaEventElapsedTime(&time, start, stop) );
+        printf("GPU time  %3.1f ms \n", time);
+
+    }else if(argc > 1 && strcmp(argv[1],gui_en)==0){
 
         vec2<int> resolution{1280, 720};
         disp::Window main_wnd("test fizyki", resolution);
@@ -88,12 +102,15 @@ int main(int argc, char *argv[]){
         auto adapter = testSim.get_display_adapter(pix_art);
         main_wnd.add_drawable(pix_art);
         
+        int dummy;
+        std::cin >> dummy;
+
         for(int idx = 0; idx < 1000; idx ++) {
             main_wnd.update();
             if(main_wnd.should_close())
                 break;
             main_wnd.clear(0x0);
-           sim_sand_kernel(testSim, false);
+           sim_sand_kernel_iterative(testSim, false);
 
             adapter.actuate();
 
