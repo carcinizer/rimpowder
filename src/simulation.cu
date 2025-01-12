@@ -1,11 +1,15 @@
 #include <cuda_runtime_api.h>
+#include <cassert>
+#include <iostream>
 #include "common.cuh"
 #include "simulation.cuh"
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+Particle::Particle() : type{ParticleType::VOID_}, velocity{-1.f, -1.f}, pos{-1.f, -1.f} {}
+
 Particle::Particle(uint32_t rgba, int2 pos_)
-    : velocity{0.0f, 0.0f}, pos{pos_.x + 0.5f, pos_.y + 0.5f} {
+    : type{ParticleType::VOID_}, velocity{0.0f, 0.0f}, pos{pos_.x + 0.5f, pos_.y + 0.5f} {
   switch (rgba) {
     case 0xFFFF00FF:
       type = ParticleType::SAND;
@@ -13,8 +17,11 @@ Particle::Particle(uint32_t rgba, int2 pos_)
     case 0xFFFFFFFF:
       type = ParticleType::WALL;
       break;
-    default:
+    case 0x00000000:
       type = ParticleType::VOID_;
+      break;
+    default:
+      assert(true);
       break;
   }
 }
@@ -30,11 +37,15 @@ uint32_t Particle::to_rgba() const {
   }
 }
 
-Simulation::Simulation(std::string& types_filename) : dev_chunks(nullptr), cpu_chunks(nullptr) {
-  int xs, ys, channels;
+Simulation::Simulation(std::string& types_filename)
+    : dev_chunks(nullptr), cpu_chunks(nullptr), dims{0} {
+  int xs = 0, ys = 0, channels = 0;
   unsigned char* char_buffer = stbi_load(types_filename.c_str(), &xs, &ys, &channels, 4);
   uint32_t* color_buffer = reinterpret_cast<uint32_t*>(char_buffer);
-
+  if (color_buffer == nullptr) {
+    std::cout << " could not load file: " << types_filename << std::endl;
+    return;
+  }
   // "ceil"
   int chunks_x = ((xs - 1) / CHUNK_SIZE) + 1;
   int chunks_y = ((ys - 1) / CHUNK_SIZE) + 1;
@@ -47,66 +58,103 @@ Simulation::Simulation(std::string& types_filename) : dev_chunks(nullptr), cpu_c
     for (int x = 0; x < xs; x++) {
       uint32_t color = color_buffer[y * xs + x];
       int2 coord{x, y};
-
-      get_particle(cpu_chunks, dims, coord) = Particle{color, coord};
+      Particle& dummy = get_particle(cpu_chunks, dims, coord);
+      dummy = Particle{color, coord};
+      // printf(" %u ", dummy.type);
     }
   }
-
+  printf("\n");
   checkCudaErrors(cudaMalloc(&dev_chunks, sizeof(Chunk) * dims.x * dims.y));
   checkCudaErrors(
       cudaMemcpy(dev_chunks, cpu_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyHostToDevice));
-
+#ifdef DEBUG_DRAW_VISITED_PX
+  checkCudaErrors(cudaMalloc(&dummy_buffor_visited_device, sizeof(uint32_t) * xs * ys));
+  checkCudaErrors(cudaMemset(dummy_buffor_visited_device, 0, sizeof(uint32_t) * xs * ys));
+#endif
   // delete[] cpu_chunks;
   delete[] char_buffer;
 }
 
-__global__ void
-simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time_ms) {
+__device__ inline float clamp(float in, float min, float max) {
+  return fminf(max, fmaxf(min, in));
+}
+
+#ifdef DEBUG_DRAW_VISITED_PX
+__global__ void simulation_kernel(
+    Chunk* chunks,
+    int2 dims,
+    int2 offset,
+    int2 stride,
+    float time_ms,
+    uint32_t* debug_buff)
+#else
+__global__ void simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time_ms)
+#endif
+{
   uint2 chunk{threadIdx.x * stride.x + offset.x, threadIdx.y * stride.y + offset.y};
   // printf("thread{%u, %u} chunk{%u, %u}\n", threadIdx.x, threadIdx.y, chunk.x, chunk.y);
-  float time = time_ms * 1000.0f;
+  float time = time_ms / 1000.0f;
+  float2 max_sim_pos = {dims.x * CHUNK_SIZE, dims.y * CHUNK_SIZE};
 
   for (int y = 0; y < CHUNK_SIZE; y++) {
     for (int x = 0; x < CHUNK_SIZE; x++) {
-      int2 pos = int2{int(chunk.x + x), int(chunk.y + y)};
+      int2 pos = int2{int(chunk.x * CHUNK_SIZE + x), int(chunk.y * CHUNK_SIZE + y)};
+
+#ifdef DEBUG_DRAW_VISITED_PX
+      int chunk_x = pos.x / CHUNK_SIZE;
+      int chunk_y = pos.y / CHUNK_SIZE;
+      int x_within_chunk = pos.x % CHUNK_SIZE;
+      int y_within_chunk = pos.y % CHUNK_SIZE;
+      debug_buff
+          [(chunk_y * dims.x * CHUNK_SIZE + chunk_x + y_within_chunk) * CHUNK_SIZE +
+           x_within_chunk] = 0xFF0000FF;
+#endif
 
       auto& particle = get_particle(chunks, dims, pos);
+      // printf(" %u ", static_cast<uint8_t>(particle.type));
 
       if (particle.type != ParticleType::SAND) {
-        break;
+        continue;
       }
 
       // Calculating next position
+      printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x, particle.velocity.y);
+
       float2 to_f{
           particle.pos.x + time * particle.velocity.x, particle.pos.y + time * particle.velocity.y};
+      to_f.x = clamp(to_f.x, 0, max_sim_pos.x);
+      to_f.y = clamp(to_f.y, 0, max_sim_pos.y);
+
       int2 to{int(to_f.x), int(to_f.y)};
-
-      if(to_f.x != particle.pos.x || to_f.y != particle.pos.y) {
-        printf("pos != next_pos\n");
-      }
-
 
       auto collision = find_collision(chunks, dims, pos, to);
 
+      //
       if (collision.collided()) {
         // TODO lepsza aproksymacja? albo i niekoniecznie
         // TODO lepsze zderzenia cząsteczek
-        particle.pos = float2{pos.x + 0.5f, pos.y + 0.5f};
+        particle.pos = float2{0.5f + collision.last_free.x, 0.5f + collision.last_free.y};
+        // float2{pos.x + 0.5f, pos.y + 0.5f};
+        // particle.velocity = float2{-particle.velocity.x, -particle.velocity.y};
         particle.velocity = float2{0, 0};
-        printf("Particle colided? \n");
+        // printf("collided\n");
       } else {
         particle.pos = to_f;
-        auto vx = particle.velocity.x + time * GRAVITY;
+        auto vx = particle.velocity.x /*- time * GRAVITY*/;
         auto vy = particle.velocity.y + time * GRAVITY;
         // clamp so that no races occur between chunks
         // TODO także przekopiować opór jeśli trzeba
-        particle.velocity.x = fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vx));
-        particle.velocity.y = fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vy));
-        printf("succesfull move vx = %.4f vy = %.4f", particle.velocity.x, particle.velocity.y);
+        particle.velocity.x = clamp(vx, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
+        // fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vx));
+        particle.velocity.y = clamp(vy, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
+        // fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vy));
+        //  printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x,
+        //  particle.velocity.y);
       }
-
-      get_particle(chunks, dims, to) = particle;  // copy particle to new position
+      auto dummy2 = particle;  // copy particle to new variable
+      // dummy2 = Particle();
       particle.type = ParticleType::VOID_;  // old position is now empty
+      get_particle(chunks, dims, to) = dummy2;
     }
   }
 }
@@ -120,6 +168,10 @@ __device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from
   int sx = copysignf(1.0f, to.x - from.x);
   int sy = copysignf(1.0f, to.y - from.y);
   int error = dx + dy;
+
+  if ((ptr.x == to.x && ptr.y == to.y)) {
+    return Collision{last_free, ptr};
+  }
 
   while (true) {
     int e2 = 2 * error;
@@ -151,11 +203,17 @@ void Simulation::step(uint32_t time_ms) {
   dim3 block_size{unsigned(dims.x / stride.x), unsigned(dims.y / stride.y), 1};
 
   for (const auto offset : {int2{0, 0}, int2{0, 1}, int2{1, 0}, int2{1, 1}}) {
+#ifdef DEBUG_DRAW_VISITED_PX
+    simulation_kernel<<<1, block_size>>>(
+        dev_chunks, dims, offset, stride, time_ms, dummy_buffor_visited_device);
+#else
     simulation_kernel<<<1, block_size>>>(dev_chunks, dims, offset, stride, time_ms);
+#endif
     checkCudaErrors(cudaGetLastError());
-    cudaDeviceSynchronize();  // TODO upewnić się, czy to jest najlepsza metoda synchronizacji
-                              // kolejnych kroków
   }
+  cudaDeviceSynchronize();  // TODO upewnić się, czy to jest najlepsza metoda synchronizacji
+                            // kolejnych kroków
+  std::cout << std::endl;
 }
 
 void Simulation::save(std::string& filename) const {
@@ -208,6 +266,15 @@ void Simulation::put_pixel_data(uint32_t* buff) const {
     }
   }
 }
+
+#ifdef DEBUG_DRAW_VISITED_PX
+void Simulation::put_visited_pixel_data(uint32_t* buff) const {
+  ulong2 sizes = simulation_pixel_size();
+  cudaMemcpy(
+      buff, dummy_buffor_visited_device, sizes.x * sizes.y * sizeof(uint32_t),
+      cudaMemcpyDeviceToHost);
+}
+#endif
 
 ulong2 Simulation::simulation_pixel_size() const {
   return {(unsigned long)(dims.x * CHUNK_SIZE), (unsigned long)(dims.y * CHUNK_SIZE)};

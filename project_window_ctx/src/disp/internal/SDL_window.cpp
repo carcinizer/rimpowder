@@ -45,7 +45,7 @@ namespace disp { namespace internal {
       int y_size,
       void* buff,
       uint32_t stride) {
-    SDL_FRect tx_rect{.x = 0, .y = 0, .w = (float)x_size, .h = (float)y_size};
+    SDL_FRect tx_rect = {.x = 0, .y = 0, .w = (float)x_size, .h = (float)y_size};
     SDL_Texture* texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, x_size, y_size);
     if (!texture) {
