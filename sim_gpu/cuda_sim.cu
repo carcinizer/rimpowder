@@ -4,8 +4,8 @@
 #include "helper_cuda.h"
 
 #include <cstdint>
-#include <cuda_device_runtime_api.h>
-#include <cuda_runtime_api.h>
+#include <cuda_runtime.h>
+//#include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
 #include <driver_types.h>
 #include <mutex>

@@ -1,4 +1,4 @@
-#include "disp/window.hpp"
+#include <disp/window.hpp>
 #include "gpu_sim.cuh"
 #include "cuda_sim.hpp"
 #include "helper_cuda.h"
@@ -41,7 +41,7 @@ static void sim_sand_kernel_iterative(GPUsim &sim, bool init_time){
     double delta_time = duration_cast<std::chrono::microseconds>(now - last_iter).count();
     last_iter = now;
     //std::cout<< "dt..." << delta_time*1e6 << std::endl;
-    sim.simStep(1, delta_time/1e6);
+    sim.simStep(1, 0.01);
     //if(i<sim.getParticleNum()){
     //  sim.simStep(i);
     //   particles_p_[i].calculateNextLocation(time_step_, density_, viscosity_);
