@@ -30,7 +30,7 @@ uint32_t Particle::to_rgba() const {
   }
 }
 
-Simulation::Simulation(std::string& types_filename) {
+Simulation::Simulation(std::string& types_filename) : dev_chunks(nullptr), cpu_chunks(nullptr) {
   int xs, ys, channels;
   unsigned char* char_buffer = stbi_load(types_filename.c_str(), &xs, &ys, &channels, 4);
   uint32_t* color_buffer = reinterpret_cast<uint32_t*>(char_buffer);
@@ -41,29 +41,30 @@ Simulation::Simulation(std::string& types_filename) {
 
   dims = int2{chunks_x, chunks_y};
 
-  Chunk* host_chunks = new Chunk[chunks_x * chunks_y];
+  cpu_chunks = new Chunk[chunks_x * chunks_y];
 
   for (int y = 0; y < ys; y++) {
     for (int x = 0; x < xs; x++) {
       uint32_t color = color_buffer[y * xs + x];
       int2 coord{x, y};
 
-      get_particle(host_chunks, dims, coord) = Particle{color, coord};
+      get_particle(cpu_chunks, dims, coord) = Particle{color, coord};
     }
   }
 
   checkCudaErrors(cudaMalloc(&dev_chunks, sizeof(Chunk) * dims.x * dims.y));
   checkCudaErrors(
-      cudaMemcpy(dev_chunks, host_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyHostToDevice));
+      cudaMemcpy(dev_chunks, cpu_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyHostToDevice));
 
-  delete[] host_chunks;
+  // delete[] cpu_chunks;
   delete[] char_buffer;
 }
 
-void __global__
+__global__ void
 simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time_ms) {
   uint2 chunk{threadIdx.x * stride.x + offset.x, threadIdx.y * stride.y + offset.y};
-  float time = time_ms / 1000.0f;
+  // printf("thread{%u, %u} chunk{%u, %u}\n", threadIdx.x, threadIdx.y, chunk.x, chunk.y);
+  float time = time_ms * 1000.0f;
 
   for (int y = 0; y < CHUNK_SIZE; y++) {
     for (int x = 0; x < CHUNK_SIZE; x++) {
@@ -80,6 +81,11 @@ simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time
           particle.pos.x + time * particle.velocity.x, particle.pos.y + time * particle.velocity.y};
       int2 to{int(to_f.x), int(to_f.y)};
 
+      if(to_f.x != particle.pos.x || to_f.y != particle.pos.y) {
+        printf("pos != next_pos\n");
+      }
+
+
       auto collision = find_collision(chunks, dims, pos, to);
 
       if (collision.collided()) {
@@ -87,6 +93,7 @@ simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time
         // TODO lepsze zderzenia cząsteczek
         particle.pos = float2{pos.x + 0.5f, pos.y + 0.5f};
         particle.velocity = float2{0, 0};
+        printf("Particle colided? \n");
       } else {
         particle.pos = to_f;
         auto vx = particle.velocity.x + time * GRAVITY;
@@ -95,6 +102,7 @@ simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time
         // TODO także przekopiować opór jeśli trzeba
         particle.velocity.x = fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vx));
         particle.velocity.y = fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vy));
+        printf("succesfull move vx = %.4f vy = %.4f", particle.velocity.x, particle.velocity.y);
       }
 
       get_particle(chunks, dims, to) = particle;  // copy particle to new position
@@ -103,7 +111,7 @@ simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time
   }
 }
 
-Collision __device__ __host__ find_collision(Chunk* chunks, int2 dims, int2 from, int2 to) {
+__device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from, int2 to) {
   int2 last_free = from;
   int2 ptr = from;
 
@@ -159,6 +167,10 @@ void Simulation::save(std::string& filename) const {
   checkCudaErrors(
       cudaMemcpy(host_chunks, dev_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyDeviceToHost));
 
+  // this discards the const qualifier
+  // make cpu_chunks mutable?
+  // collect_from_gpu();
+
   for (int y = 0; y < ys; y++) {
     for (int x = 0; x < xs; x++) {
       int2 coord{x, y};
@@ -173,18 +185,48 @@ void Simulation::save(std::string& filename) const {
   delete[] color_buffer;
 }
 
-Simulation::~Simulation() {
-  checkCudaErrors(cudaFree(dev_chunks));
+void Simulation::collect_from_gpu() const {
+  checkCudaErrors(
+      cudaMemcpy(cpu_chunks, dev_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyDeviceToHost));
 }
 
-Chunk& __host__ __device__ get_chunk(Chunk* chunks, int2 dims, int2 coord) {
+void Simulation::synchronise_to_gpu() {
+  checkCudaErrors(
+      cudaMemcpy(dev_chunks, cpu_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyHostToDevice));
+}
+
+void Simulation::put_pixel_data(uint32_t* buff) const {
+  collect_from_gpu();
+  int xs = dims.x * CHUNK_SIZE;
+  int ys = dims.y * CHUNK_SIZE;
+
+  for (int y = 0; y < ys; y++) {
+    for (int x = 0; x < xs; x++) {
+      int2 coord{x, y};
+      uint32_t color = get_particle(cpu_chunks, dims, coord).to_rgba();
+      buff[y * xs + x] = color;
+    }
+  }
+}
+
+ulong2 Simulation::simulation_pixel_size() const {
+  return {(unsigned long)(dims.x * CHUNK_SIZE), (unsigned long)(dims.y * CHUNK_SIZE)};
+}
+
+Simulation::~Simulation() {
+  checkCudaErrors(cudaFree(dev_chunks));
+  if (cpu_chunks)
+    delete[] cpu_chunks;
+}
+
+__host__ __device__ Chunk& get_chunk(Chunk* chunks, int2 dims, int2 coord) {
   int chunk_x = coord.x / CHUNK_SIZE;
   int chunk_y = coord.y / CHUNK_SIZE;
 
   return chunks[chunk_y * dims.x + chunk_x];
 }
 
-Particle& __host__ __device__ get_particle(Chunk* chunks, int2 dims, int2 coord) {
+__host__ __device__ Particle& get_particle(Chunk* chunks, int2 dims, int2 coord) {
   int chunk_x = coord.x / CHUNK_SIZE;
   int chunk_y = coord.y / CHUNK_SIZE;
   int x_within_chunk = coord.x % CHUNK_SIZE;

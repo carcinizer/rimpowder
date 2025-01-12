@@ -3,10 +3,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <simple_clock.hpp>
 #include "common.cuh"
 #include "simulation.cuh"
 #include "stb_image.h"
 #include "stb_image_write.h"
+
 
 #include <disp/window.hpp>
 #include <drawables/buffer_drawable.hpp>
@@ -57,51 +59,44 @@ int main(int argc, char** argv) {
   checkCudaErrors(cudaSetDevice(0));
 
   Simulation sim(arg_str);
-  sim.step(100);
-  sim.step(100);
 
   kernel<<<1, 1>>>();
 
   sim.save(sim_output);
+  auto sim_pixel_dims = sim.simulation_pixel_size();
+  auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(sim_pixel_dims.x, sim_pixel_dims.y);
 
-  {
-    size_t testx = 500, testy = 500;
+  disp::Window main_window("First window tests", vec2<int>{1280, 720});
+  main_window.add_drawable(pix_art);
+  if (main_window.initialise()) {
+    return -1;
+  }
 
-    // IMPORTANT MESSAGE "HOW TO USE"
-    // CUZ I DONT HAVE JUICE LEFT TO DOCUMENT THE CODE
-    //
-    // all you need to know it this thing bellow
-    auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(testx, testy);
-    // that is the buffor you will draw into.
-    //
-    // you can use memcpu to draw into buff->get().
-    // ex: cudamemcpy(buff->get(), from, sizeof(uint32_t)*testx*testy, cudaMemcpyHostToDevice);
-    ////
-    // this will draw every frame if you use
-    // main_window.clear(0xFFU) // <- draw everything black
-    // ... copy pixels to buffer -
-    // ---- REMEMBER TO LOCK THE BUFFOR MUTEX IF YOU ARE MULTITHREADING!!
-    //
-    // main_window.draw();
-    // ...
-    //
-    // You can use main_window.update() to poll all events from the window
-    // (currently keyboard_button, mouse_button and close_window events are implemented).
-    // Rn there is no functionality to check those events (GLHF :) )
-    //
-    // use main_window.should_close() to check if render window is closed.
+  simple_clock sim_clock;
+  using std::chrono::milliseconds;
 
-    // MAIN WINDOW MUST RUN ALL FUNCTIONS ON MAIN THREAD!!
-    disp::Window main_window("First window tests", vec2<int>{1280, 720});
-    main_window.add_drawable(pix_art);
-    if (main_window.initialise()) {
+  for (int iter = 0; iter < 10; iter++) {
+    main_window.update();
+    if (main_window.should_close()) {
+      std::cout << "window should close" << std::endl;
       return -1;
     }
-
-    draw_stuff(pix_art, testx, main_window);
-
-    // remember window is RAII-style. it will close on destruction.
+    main_window.clear(0xFFU);
+    sim.step(sim_clock.restart<milliseconds>().count());
+    {
+      std::lock_guard<std::mutex> lock(pix_art->get_mtx());
+      sim.put_pixel_data(*pix_art->get());
+    }
+    main_window.draw();
   }
+  std::cout<< "donna" <<std::endl;
+
+  while(!main_window.should_close()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    main_window.update();
+    std::this_thread::yield();
+  }
+
   // kernel<<<1,1>>>();
   return 0;
 }
