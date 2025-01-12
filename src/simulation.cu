@@ -94,7 +94,7 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 st
   uint2 chunk{threadIdx.x * stride.x + offset.x, threadIdx.y * stride.y + offset.y};
   // printf("thread{%u, %u} chunk{%u, %u}\n", threadIdx.x, threadIdx.y, chunk.x, chunk.y);
   float time = time_ms / 1000.0f;
-  float2 max_sim_pos = {dims.x * CHUNK_SIZE, dims.y * CHUNK_SIZE};
+  int2 max_sim_pos = {dims.x * CHUNK_SIZE, dims.y * CHUNK_SIZE};
 
   for (int y = 0; y < CHUNK_SIZE; y++) {
     for (int x = 0; x < CHUNK_SIZE; x++) {
@@ -118,48 +118,42 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 st
       }
 
       // Calculating next position
-      printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x, particle.velocity.y);
+      // printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x, particle.velocity.y);
 
       float2 to_f{
           particle.pos.x + time * particle.velocity.x, particle.pos.y + time * particle.velocity.y};
-      to_f.x = clamp(to_f.x, 0, max_sim_pos.x);
-      to_f.y = clamp(to_f.y, 0, max_sim_pos.y);
+      to_f.x = clamp(to_f.x, 0, (float)max_sim_pos.x);
+      to_f.y = clamp(to_f.y, 0, (float)max_sim_pos.y);
 
       int2 to{int(to_f.x), int(to_f.y)};
 
-      auto collision = find_collision(chunks, dims, pos, to);
+      auto collision = find_collision(chunks, dims, pos, to, max_sim_pos);
 
-      //
       if (collision.collided()) {
         // TODO lepsza aproksymacja? albo i niekoniecznie
         // TODO lepsze zderzenia cząsteczek
         particle.pos = float2{0.5f + collision.last_free.x, 0.5f + collision.last_free.y};
-        // float2{pos.x + 0.5f, pos.y + 0.5f};
-        // particle.velocity = float2{-particle.velocity.x, -particle.velocity.y};
-        particle.velocity = float2{0, 0};
-        // printf("collided\n");
+        particle.velocity = float2{particle.velocity.x * 0.2f, particle.velocity.y * 0.2f};
+        // particle.velocity = float2{0, 0};
       } else {
         particle.pos = to_f;
-        auto vx = particle.velocity.x /*- time * GRAVITY*/;
+        auto vx = particle.velocity.x /*+ time * GRAVITY*/;
         auto vy = particle.velocity.y + time * GRAVITY;
         // clamp so that no races occur between chunks
         // TODO także przekopiować opór jeśli trzeba
         particle.velocity.x = clamp(vx, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
-        // fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vx));
         particle.velocity.y = clamp(vy, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
-        // fminf(CHUNK_SIZE, fmaxf(float(-CHUNK_SIZE), vy));
-        //  printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x,
-        //  particle.velocity.y);
       }
       auto dummy2 = particle;  // copy particle to new variable
       // dummy2 = Particle();
       particle.type = ParticleType::VOID_;  // old position is now empty
-      get_particle(chunks, dims, to) = dummy2;
+      get_particle(chunks, dims, collision.last_free) = dummy2;
     }
   }
 }
 
-__device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from, int2 to) {
+__device__ __host__ Collision
+find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constrains) {
   int2 last_free = from;
   int2 ptr = from;
 
@@ -167,7 +161,7 @@ __device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from
   int dy = abs(from.y - to.y);
   int sx = copysignf(1.0f, to.x - from.x);
   int sy = copysignf(1.0f, to.y - from.y);
-  int error = dx + dy;
+  int error = dx - dy;
 
   if ((ptr.x == to.x && ptr.y == to.y)) {
     return Collision{last_free, ptr};
@@ -175,16 +169,19 @@ __device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from
 
   while (true) {
     int e2 = 2 * error;
-    if (e2 >= dy) {
-      error += dy;
+    if (e2 > -dy) {
+      error -= dy;
       ptr.x += sx;
     }
-    if (e2 <= dx) {
+    if (e2 < dx) {
       error += dx;
       ptr.y += sy;
     }
 
+    if ((ptr.x < 0 || ptr.x >= max_constrains.x) || (ptr.y < 0 || ptr.y >= max_constrains.y))
+      break;
     if ((ptr.x == to.x && ptr.y == to.y)) {
+      last_free = ptr;
       break;
     }
 

@@ -6,7 +6,7 @@
 //#define DEBUG_DRAW_VISITED_PX
 
 constexpr size_t CHUNK_SIZE = 16;
-constexpr float GRAVITY = 0.981;  // in
+constexpr float GRAVITY = 1.981;  // in
 
 enum class ParticleType : uint8_t { VOID_ = 0, SAND = 1, WALL = 2 };
 
@@ -98,7 +98,8 @@ class Simulation {
 
 __host__ __device__ Chunk& get_chunk(Chunk* chunks, int2 dims, int2 coord);
 __host__ __device__ Particle& get_particle(Chunk* chunks, int2 dims, int2 coord);
-__device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from, int2 to);
+__device__ __host__ Collision
+find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constraints);
 
 __global__ static void simulation_kernel(Chunk* chunks, int2 dims, int time_ms);
 __device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from, int2 to);
