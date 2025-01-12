@@ -9,7 +9,7 @@
 #define K 512
 #define SIM_SIZE 100000
 #define SIM_STEPS 10000
-#define MAX_TIME 4 //time over 3.5 causes some oscilations for air density and viscosity
+#define MAX_TIME 10 //time over 3.5 causes some oscilations for air density and viscosity
 
 
 typedef struct timespec app_timer_t;
@@ -30,10 +30,19 @@ class sim_element{
 // sand is a sphere
 class Sand: public sim_element{
     private:
-    float x_,y_, x0_, y0_;
 
-    float Fxw_, v0x_, vx_, ax_; // values for x axis movement
-    float Fyw_, v0y_, vy_, ay_; // values for y axis movement
+    //variables for zero values
+    float  x0_, v0x_, ax0_; 
+    float  y0_, v0y_, ay0_; 
+
+    //variables for saving values from previous iteration
+    float y_pre_, vy_pre_, ay_pre_;
+    float x_pre_, vx_pre_, ax_pre_;
+
+    //variables for saving values from current iteration
+    float Fyw_, y_, vy_, ay_;
+    float Fxw_, x_, vx_, ax_;
+
     // values for resistance calcuations
     float R_,C_D_,S_D_;
     float mass_;

@@ -62,12 +62,16 @@ int main(int argc, char *argv[]){
     cudaEvent_t start, stop;
     float time;
     float time_step = (float)MAX_TIME/SIM_STEPS;
-    float n = 0.0000107; //dynamic viscosity of liquid  in Pa*s
-    float p = 1;// Density of the liquid in kg/m3
+    float n = 0.00000107; //dynamic viscosity of liquid  in Pa*s
+    float p = 1000;// Density of the liquid in kg/m3
     char gui_en[] = "-gui";
     GPUsim testSim(n,p,
     MAX_TIME,SIM_STEPS,SIM_SIZE, std::chrono::steady_clock::now());
     checkCudaErrors(cudaSetDevice(0));
+    std::cout<<"Running simulation for:"<<std::endl;
+    std::cout<<SIM_SIZE<<" Particles"<<std::endl;
+    std::cout<<"Time step: "<< time_step<<std::endl;
+    std::cout<<SIM_STEPS<<" Steps"<<std::endl;
     std::cout<<"before:" << std::endl;
     testSim[1].printPosition();
 
