@@ -20,14 +20,33 @@ class buffor_drawable : public disp::drawable {
   buff_T* buff;
   size_t x, y;
   mutable std::mutex mtx;
+  bool free_buffer;
 
  public:
-  buffor_drawable(size_t x, size_t y) : x(x), y(y) {
+  /*!
+   * \brief Constructor creating buffor for drawable context
+   * of size x*y;
+   */
+  buffor_drawable(size_t x, size_t y) : x(x), y(y), free_buffer(true) {
     buff = new buff_T[x * y];
     memset(buff, 0, x * y * sizeof(buff_T));
   }
 
-  virtual ~buffor_drawable() { delete[] buff; }
+  /*!
+   * \brief Constructor accepting existing buffor sized x*y
+   * It will not destroy the buffor upon destruction.
+   */
+  buffor_drawable(size_t x, size_t y, buff_T* buff, bool free_on_destruction = false)
+      : x(x), y(y), free_buffer(free_on_destruction) {
+    buff = new buff_T[x * y];
+    memset(buff, 0, x * y * sizeof(buff_T));
+  }
+
+  virtual ~buffor_drawable() {
+    if (free_buffer) {
+      delete[] buff;
+    }
+  }
 
   void draw(disp::internal::window_impl& wnd) const override {
     std::lock_guard<std::mutex> lock(mtx);
