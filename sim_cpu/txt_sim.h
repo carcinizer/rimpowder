@@ -18,11 +18,18 @@ class sim_element{
 // sand is a sphere
 class Sand: public sim_element{
     private:
-    uint16_t x_,y_, x0_, y0_;
-    float time_;
-   
-    float Fxw_, v0x_, vx_, ax_; // values for x axis movement
-    float Fyw_, v0y_, vy_, ay_; // values for y axis movement
+    //variables for zero values
+    float  x0_, v0x_, ax0_; 
+    float  y0_, v0y_, ay0_; 
+
+    //variables for saving values from previous iteration
+    float y_pre_, vy_pre_, ay_pre_;
+    float x_pre_, vx_pre_, ax_pre_;
+
+    //variables for saving values from current iteration
+    float Fyw_, y_, vy_, ay_;
+    float Fxw_, x_, vx_, ax_;
+
     // values for resistance calcuations
     float R_,C_D_,S_D_;
     float mass_;

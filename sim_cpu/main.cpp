@@ -6,7 +6,7 @@
 
 #define sim_size 100000
 #define sim_steps 10000
-#define max_time 4 //time over 3.5 causes some oscilations for air density and viscosity
+#define max_time 10 
 
 typedef struct timespec app_timer_t;
 #define timer(t_ptr) clock_gettime(CLOCK_MONOTONIC, t_ptr)
@@ -30,8 +30,8 @@ int main(){
     std::vector<std::shared_ptr<Sand>> particle_vec;
     app_timer_t start, stop;
     float time_step = (float)max_time/sim_steps;
-    float n = 0.0000107; //dynamic viscosity of liquid  in Pa*s
-    float p = 1;// Density of the liquid in kg/m3 
+    float n = 0.00000107; //dynamic viscosity of liquid  in Pa*s
+    float p = 1000;// Density of the liquid in kg/m3
     for(int i = 0; i< sim_size; i++){
         particle_vec.push_back(std::make_shared<Sand>(0,i));
     }

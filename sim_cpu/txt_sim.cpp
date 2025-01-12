@@ -9,9 +9,9 @@ Sand::Sand(uint16_t x,uint16_t y):x0_(x),y0_(y){
 x_ = 0;
 y_ = 0;
 vx_ = 0;
-v0x_ = 0.1;
+v0x_ = 0.0;
 ax_ = 9.81;
-vy_ = 0;
+vy_ = 0.1;
 v0y_ = 0.7;
 ay_ = 0;
 time_ = 0;
@@ -36,38 +36,43 @@ void Sand::calculateNextLocation(float time_step, float p, float n){
     float v_w = 0;
     float Re = 0;
     float awx,awy;
-    time_ += time_step;
 
-    //vx_ += v0x_+ax_*time_;
-    //vy_ += v0y_+ay_*time_;
+    //make n iteration values n-1 iteration
 
-    mass_ = 1600*(4*3.14*R_*R_*R_/3);//Density of sand is 1600 kg/m3
+    vx_pre_ = vx_;
+    vy_pre_ = vy_;
+    x_pre_  = x_;
+    y_pre_  = y_;
+    ax_pre_ = ax_;
+    ay_pre_ = ay_;
 
-    v_w = std::sqrt(vx_*vx_+vy_*vy_);
+    v_w = std::sqrt(vx_pre_*vx_pre_+vy_pre_*vy_pre_);
 
-    //x_ = x0_ + (uint16_t)(v0x_*time_step) + (uint16_t)(ax_*time_*time_/2);
-    //y_ = y0_ + (uint16_t)(v0y_*time_step) + (uint16_t)(ay_*time_*time_/2);
-    
-    
     //Hydro/Areodynamic resistance calcuations
-    Re = p*v_w*2*R_/n;
+    Re = density*v_w*2*R_/viscosity;
     // split resistance to x and y components and
     // calculate x and y opposing force vectors.
     if(Re<1){
-        Fxw_ = mass_*ax_  -6*3.14*n*R_*vx_;
-        Fyw_ = mass_*ay_  -6*3.14*n*R_*vy_;
-    }else{
-        //return;
-        Fxw_ = mass_*ax_ - C_D_*S_D_*(p*abs(vx_)*abs(vx_))/2;
-        Fyw_ = mass_*ay_ - C_D_*S_D_*(p*abs(vy_)*abs(vy_))/2;
+        Fxw_ = mass_*ax0_  -6*3.14*viscosity*R_*vx_pre_;
+        Fyw_ = mass_*ay0_  -6*3.14*viscosity*R_*vy_pre_;
     }
+    else
+    {
+        Fxw_ = mass_*ax0_ - C_D_*S_D_*(density*abs(vx_pre_)*abs(vx_pre_))/2;
+        Fyw_ = mass_*ay0_ - C_D_*S_D_*(density*abs(vy_pre_)*abs(vy_pre_))/2;
+    }
+
 
     // calculate movement restricted by opposing force
     // aw = Fw/m
-    vx_ = v0x_ + Fxw_/mass_*time_;
-    vy_ = v0y_ + Fyw_/mass_*time_;
-    x_ = x0_ + (uint16_t)(v0x_*time_) + (uint16_t)(Fxw_/mass_*time_*time_/2);
-    y_ = y0_ + (uint16_t)(v0y_*time_) + (uint16_t)(Fyw_/mass_*time_*time_/2);
+    ax_ = Fxw_/mass_;
+    ay_ = Fyw_/mass_;
+
+    vx_ = vx_pre_ + ax_*time_step;//Fxw_/mass_*time_step;
+    vy_ = vy_pre_ + ay_*time_step; //Fyw_/mass_*time_step;
+
+    x_ = x_pre_ + (vx_*time_step) + (ax_*time_step*time_step/2);
+    y_ = y_pre_ + (vy_*time_step) + (ay_*time_step*time_step/2);
 
     //time_ += time_s;
 }
