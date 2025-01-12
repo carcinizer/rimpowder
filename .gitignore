@@ -6,6 +6,9 @@ CMakeSettings.json
 vs2022/*
 !vs2022/vs2022.sln
 !vs2022/vs2022.vcxproj
+!vs2022/sim_gpu/
+vs2022/sim_gpu/*
+!vs2022/sim_gpu/sim_gpu.vcxproj
 build/*
 .cache/
 .vscode/
