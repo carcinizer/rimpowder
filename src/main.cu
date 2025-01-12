@@ -15,35 +15,6 @@
 #include <memory>
 #include <thread>
 
-#define M_PI 3.14159265358979323846
-
-__global__ void kernel() {}
-
-void draw_stuff(buffor_drawable_ptr<uint32_t>& buff, size_t xSize, disp::Window& wnd) {
-  std::mutex& mtx = buff->get_mtx();
-  uint32_t* raw_buff = *buff->get();
-  double R = 200;
-#define FLAT2D_IDX(cx, cy) cx + cy* xSize
-#define MAX_ITER 360
-  for (int i = 0; i < MAX_ITER; i++) {
-    wnd.update();
-    if (wnd.should_close())
-      return;
-    wnd.clear(0xFFU);
-    {
-      // dummy edit the buffor with buffor lock!
-      std::lock_guard<std::mutex> lock(mtx);
-      size_t x = R * (std::sin((double)2.0 * M_PI * i / MAX_ITER) + 1);
-      size_t y = R * (std::cos((double)2.0 * M_PI * i / MAX_ITER) + 1);
-      // std::cout << " x= " << x << std::endl;
-      // std::cout << " y= " << y << std::endl;
-      raw_buff[FLAT2D_IDX(x, y)] = 0xFF0000FF;
-    }
-    // remember that buffer_drawable needs an access to its lock in window draw!
-    wnd.draw();
-    std::this_thread::sleep_for(std::chrono::milliseconds(20));
-  }
-}
 
 int main(int argc, char** argv) {
   if (argc != 2) {
@@ -85,6 +56,7 @@ int main(int argc, char** argv) {
     }
     main_window.clear(0xFFU);
     long long dt = sim_clock.restart<milliseconds>().count();
+    // SIMULATION RELATED STUFF
     sim.step(dt);
     {
       std::lock_guard<std::mutex> lock(pix_art->get_mtx());
@@ -96,6 +68,7 @@ int main(int argc, char** argv) {
       sim.put_visited_pixel_data(*debug_px->get());
     }
 #endif
+    // SIMULATION RELATED STUFF END
     main_window.draw();
     std::cout << "dt: " << dt << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
