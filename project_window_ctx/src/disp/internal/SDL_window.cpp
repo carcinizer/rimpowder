@@ -1,3 +1,4 @@
+#include "primitives/vec2.hpp"
 #ifdef SDL_IMPL
 
 #include <SDL3/SDL.h>
@@ -44,8 +45,8 @@ namespace disp { namespace internal {
       int x_size,
       int y_size,
       void* buff,
-      uint32_t stride) {
-    SDL_FRect tx_rect = {.x = 0, .y = 0, .w = (float)x_size, .h = (float)y_size};
+      uint32_t stride,
+      const vec2<unsigned> scale) {
     SDL_Texture* texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, x_size, y_size);
     if (!texture) {
@@ -67,6 +68,9 @@ namespace disp { namespace internal {
     } else {
       std::cout << "cannot lock texture" << SDL_GetError() << std::endl;
     }
+
+    SDL_FRect tx_rect = {
+        .x = 0, .y = 0, .w = (float)x_size * scale.x, .h = (float)y_size * scale.y};
     SDL_RenderTexture(renderer, texture, NULL, &tx_rect);
     SDL_DestroyTexture(texture);
   }

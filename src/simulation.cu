@@ -1,4 +1,5 @@
-#include <cuda_runtime_api.h>
+#include <cuda_device_runtime_api.h>
+#include <cuda_runtime.h>
 #include <cassert>
 #include <iostream>
 #include "common.cuh"
@@ -35,6 +36,72 @@ uint32_t Particle::to_rgba() const {
     default:
       return 0x00000000;
   }
+}
+
+__host__ __device__ float Q_rsqrt(float number) {
+  // Quake reference
+  long i;
+  float x2, y;
+  const float threehalfs = 1.5F;
+
+  x2 = number * 0.5F;
+  y = number;
+  i = *(long*)&y;  // evil floating point bit level hacking
+  i = 0x5f3759df - (i >> 1);  // what the fuck?
+  y = *(float*)&i;
+  y = y * (threehalfs - (x2 * y * y));  // 1st iteration
+  //	y  = y * ( threehalfs - ( x2 * y * y ) );   // 2nd iteration, this can be removed
+
+  return y;
+}
+
+__host__ __device__ float2
+reflect_normal(const float2 in_vector, const float2 collision_normal, const float normal_qsrt) {
+  float x_dir = in_vector.x;
+  float y_dir = in_vector.y;
+
+  // float normal_qsrt =
+  // Q_rsqrt(collision_normal.x * collision_normal.x + collision_normal.y * collision_normal.y);
+
+  x_dir -= 1 * x_dir * collision_normal.x * collision_normal.x * normal_qsrt + 0.5;
+  y_dir -= 1 * y_dir * collision_normal.y * collision_normal.y * normal_qsrt;
+
+  return float2{x_dir, y_dir};
+}
+
+__host__ __device__ Collision_velocity_response
+Collision_velocity_response::calc_response(Particle& first, Particle& second) {
+  const float2 bt_obj_vec{first.pos.x - second.pos.x, first.pos.y - second.pos.y};
+  const float mass_of_1 = 2.f, mass_of_2 = 2.f;
+  const float elasticity_of_1 = 1.f, elasticity_of_2 = 1.f;
+
+  float bt_obj_length = Q_rsqrt(bt_obj_vec.x * bt_obj_vec.x + bt_obj_vec.y * bt_obj_vec.y);
+
+  const float2 collision_normal_obj2 = {bt_obj_vec.x * bt_obj_length, bt_obj_vec.y * bt_obj_length};
+  const float2 collision_normal_obj1 = {
+      -bt_obj_vec.x * bt_obj_length, -bt_obj_vec.y * bt_obj_length};
+
+  const float2 obj1_vel = reflect_normal(first.velocity, collision_normal_obj1, bt_obj_length);
+  const float2 obj2_vel = reflect_normal(first.velocity, collision_normal_obj2, bt_obj_length);
+
+  const float obj1_vel_qsrt = Q_rsqrt(obj1_vel.x * obj1_vel.x + obj1_vel.y * obj1_vel.y);
+  const float obj2_vel_qsrt = Q_rsqrt(obj2_vel.x * obj2_vel.x + obj2_vel.y * obj2_vel.y);
+
+  const float2 obj1_vel_norm = {obj1_vel.x * obj1_vel_qsrt, obj1_vel.y * obj1_vel_qsrt};
+  const float2 obj2_vel_norm = {obj2_vel.x * obj2_vel_qsrt, obj2_vel.y * obj2_vel_qsrt};
+
+  const float mass1p2 = (mass_of_1 + mass_of_2);
+  const float target_vel1 = ((mass_of_1 - mass_of_2) / mass1p2 / obj1_vel_qsrt +
+                             2 * mass_of_2 / mass1p2 / obj2_vel_qsrt) *
+                            elasticity_of_1;
+  const float target_vel2 = ((2 * mass_of_1) / mass1p2 / obj1_vel_qsrt +
+                             (mass_of_2 - mass_of_1) / mass1p2 / obj2_vel_qsrt) *
+                            elasticity_of_2;
+
+  return {
+      {obj1_vel_norm.x * target_vel1, obj1_vel_norm.y * target_vel1},
+      {obj2_vel_norm.x * target_vel2, obj2_vel_norm.y * target_vel2}};
+  // float2 obj2_normal{bt_obj_vec.x * bt_obj_length, bt_obj_vec.y * bt_obj_length};
 }
 
 Simulation::Simulation(std::string& types_filename)
@@ -91,10 +158,11 @@ __global__ void simulation_kernel(
 __global__ void simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 stride, float time_ms)
 #endif
 {
-  uint2 chunk{threadIdx.x * stride.x + offset.x, threadIdx.y * stride.y + offset.y};
+  const uint2 chunk{threadIdx.x * stride.x + offset.x, threadIdx.y * stride.y + offset.y};
   // printf("thread{%u, %u} chunk{%u, %u}\n", threadIdx.x, threadIdx.y, chunk.x, chunk.y);
-  float time = time_ms / 1000.0f;
-  int2 max_sim_pos = {dims.x * CHUNK_SIZE, dims.y * CHUNK_SIZE};
+  const float time = time_ms / 1000.0f;
+  const ulong2 max_sim_pos = {dims.x * CHUNK_SIZE, dims.y * CHUNK_SIZE};
+  float2 second_obj_vel{0};
 
   for (int y = 0; y < CHUNK_SIZE; y++) {
     for (int x = 0; x < CHUNK_SIZE; x++) {
@@ -110,52 +178,66 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 st
            x_within_chunk] = 0xFF0000FF;
 #endif
 
+      Collision collision{};
       auto& particle = get_particle(chunks, dims, pos);
       // printf(" %u ", static_cast<uint8_t>(particle.type));
 
-      if (particle.type != ParticleType::SAND) {
-        continue;
+      // actually need to synch threads to make sure, that all particles in block?warp? has correct
+      // velocity value! Thats why changing this if here
+      if (particle.type == ParticleType::SAND) {
+        // Calculating next position
+        // printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x,
+        // particle.velocity.y);
+
+        float2 to_f{
+            particle.pos.x + time * particle.velocity.x,
+            particle.pos.y + time * particle.velocity.y};
+        to_f.x = clamp(to_f.x, 0, (float)max_sim_pos.x);
+        to_f.y = clamp(to_f.y, 0, (float)max_sim_pos.y);
+
+        int2 to{int(to_f.x), int(to_f.y)};
+
+        collision = find_collision(chunks, dims, pos, to, max_sim_pos);
+
+        if (collision.collided()) {
+          // TODO lepsza aproksymacja? albo i niekoniecznie
+          // TODO lepsze zderzenia cząsteczek
+          particle.pos = float2{0.5f + collision.last_free.x, 0.5f + collision.last_free.y};
+          const auto response =
+              Collision_velocity_response::calc_response(particle, *collision.collider);
+          particle.velocity = response.part1_velocity;
+          second_obj_vel = response.part2_velocity;
+        } else {
+          particle.pos = to_f;
+          auto vx = particle.velocity.x /*+ time * GRAVITY*/;
+          auto vy = particle.velocity.y + time * GRAVITY;
+          // clamp so that no races occur between chunks
+          // TODO także przekopiować opór jeśli trzeba
+          particle.velocity.x = clamp(vx, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
+          particle.velocity.y = clamp(vy, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
+        }
       }
+      // sync threads for all warps to finish, and apply changes
+      __syncthreads();
+      if (collision.collider)
+        collision.collider->velocity = second_obj_vel;
 
-      // Calculating next position
-      // printf("succesfull move vx = %.4f vy = %.4f\n", particle.velocity.x, particle.velocity.y);
-
-      float2 to_f{
-          particle.pos.x + time * particle.velocity.x, particle.pos.y + time * particle.velocity.y};
-      to_f.x = clamp(to_f.x, 0, (float)max_sim_pos.x);
-      to_f.y = clamp(to_f.y, 0, (float)max_sim_pos.y);
-
-      int2 to{int(to_f.x), int(to_f.y)};
-
-      auto collision = find_collision(chunks, dims, pos, to, max_sim_pos);
-
-      if (collision.collided()) {
-        // TODO lepsza aproksymacja? albo i niekoniecznie
-        // TODO lepsze zderzenia cząsteczek
-        particle.pos = float2{0.5f + collision.last_free.x, 0.5f + collision.last_free.y};
-        particle.velocity = float2{particle.velocity.x * 0.2f, particle.velocity.y * 0.2f};
-        // particle.velocity = float2{0, 0};
-      } else {
-        particle.pos = to_f;
-        auto vx = particle.velocity.x /*+ time * GRAVITY*/;
-        auto vy = particle.velocity.y + time * GRAVITY;
-        // clamp so that no races occur between chunks
-        // TODO także przekopiować opór jeśli trzeba
-        particle.velocity.x = clamp(vx, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
-        particle.velocity.y = clamp(vy, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
+      __syncthreads();
+      if (particle.type == ParticleType::SAND) {
+        auto dummy2 = particle;  // copy particle to new variable
+        // dummy2 = Particle();
+        particle.type = ParticleType::VOID_;  // old position is now empty
+        get_particle(chunks, dims, collision.last_free) = dummy2;
       }
-      auto dummy2 = particle;  // copy particle to new variable
-      // dummy2 = Particle();
-      particle.type = ParticleType::VOID_;  // old position is now empty
-      get_particle(chunks, dims, collision.last_free) = dummy2;
     }
   }
 }
 
 __device__ __host__ Collision
-find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constrains) {
+find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, const ulong2 max_constrains) {
   int2 last_free = from;
   int2 ptr = from;
+  Particle* Part;
 
   int dx = abs(from.x - to.x);
   int dy = abs(from.y - to.y);
@@ -164,7 +246,7 @@ find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constrains
   int error = dx - dy;
 
   if ((ptr.x == to.x && ptr.y == to.y)) {
-    return Collision{last_free, ptr};
+    return Collision{last_free, ptr, nullptr};
   }
 
   while (true) {
@@ -178,21 +260,22 @@ find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constrains
       ptr.y += sy;
     }
 
-    if ((ptr.x < 0 || ptr.x >= max_constrains.x) || (ptr.y < 0 || ptr.y >= max_constrains.y))
-      break;
+    // if ((ptr.x < 0 || ptr.x >= max_constrains.x) || (ptr.y < 0 || ptr.y >= max_constrains.y))
+    //   break;
+
+    if ((Part = &get_particle(chunks, dims, ptr))->type != ParticleType::VOID_) {
+      return Collision{last_free, ptr, Part};
+    }
+
     if ((ptr.x == to.x && ptr.y == to.y)) {
       last_free = ptr;
       break;
     }
 
-    if (get_particle(chunks, dims, ptr).type != ParticleType::VOID_) {
-      return Collision{last_free, ptr};
-    }
-
     last_free = ptr;
   }
 
-  return Collision{last_free, ptr};
+  return Collision{last_free, ptr, nullptr};
 }
 
 void Simulation::step(uint32_t time_ms) {

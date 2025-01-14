@@ -15,7 +15,6 @@
 #include <memory>
 #include <thread>
 
-
 int main(int argc, char** argv) {
   if (argc != 2) {
     std::cout << "Wrong number of arguments\n" << std::endl;
@@ -32,7 +31,8 @@ int main(int argc, char** argv) {
 
   sim.save(sim_output);
   auto sim_pixel_dims = sim.simulation_pixel_size();
-  auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(sim_pixel_dims.x, sim_pixel_dims.y);
+  auto pix_art = std::make_shared<buffor_drawable<uint32_t>>(
+      sim_pixel_dims.x, sim_pixel_dims.y, vec2<unsigned>{2u, 2u});
   disp::Window main_window("First window tests", vec2<int>{1280, 720});
   main_window.add_drawable(pix_art);
 
@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
   simple_clock sim_clock;
   using std::chrono::milliseconds;
 
-  for (int iter = 0; iter < 500; iter++) {
+  for (int iter = 0; iter < 10000; iter++) {
     main_window.update();
     if (main_window.should_close()) {
       std::cout << "window should close" << std::endl;
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     // SIMULATION RELATED STUFF END
     main_window.draw();
     std::cout << "dt: " << dt << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
   }
   std::cout << "donna" << std::endl;
 

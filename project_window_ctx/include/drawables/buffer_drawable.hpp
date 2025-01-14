@@ -21,13 +21,15 @@ class buffor_drawable : public disp::drawable {
   size_t x, y;
   mutable std::mutex mtx;
   bool free_buffer;
+  vec2<unsigned> scale;
 
  public:
   /*!
    * \brief Constructor creating buffor for drawable context
    * of size x*y;
    */
-  buffor_drawable(size_t x, size_t y) : x(x), y(y), free_buffer(true) {
+  buffor_drawable(size_t x, size_t y, vec2<unsigned> scale = {1, 1})
+      : x(x), y(y), free_buffer(true), scale(scale) {
     buff = new buff_T[x * y];
     memset(buff, 0, x * y * sizeof(buff_T));
   }
@@ -36,8 +38,13 @@ class buffor_drawable : public disp::drawable {
    * \brief Constructor accepting existing buffor sized x*y
    * It will not destroy the buffor upon destruction.
    */
-  buffor_drawable(size_t x, size_t y, buff_T* buff, bool free_on_destruction = false)
-      : x(x), y(y), free_buffer(free_on_destruction) {
+  buffor_drawable(
+      size_t x,
+      size_t y,
+      buff_T* buff,
+      bool free_on_destruction = false,
+      vec2<unsigned> scale = {1, 1})
+      : x(x), y(y), free_buffer(free_on_destruction), scale(scale) {
     buff = new buff_T[x * y];
     memset(buff, 0, x * y * sizeof(buff_T));
   }
@@ -51,7 +58,7 @@ class buffor_drawable : public disp::drawable {
   void draw(disp::internal::window_impl& wnd) const override {
     std::lock_guard<std::mutex> lock(mtx);
     // TODO: This should be kind of virtual idk?
-    wnd.draw_buffer(0, 0, x, y, buff, sizeof(buff_T));
+    wnd.draw_buffer(0, 0, x, y, buff, sizeof(buff_T), scale);
   }
 
   std::mutex& get_mtx() { return mtx; }

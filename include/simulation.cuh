@@ -3,10 +3,10 @@
 #include <cuda_runtime.h>
 #include <cstdint>
 #include <string>
-//#define DEBUG_DRAW_VISITED_PX
+// #define DEBUG_DRAW_VISITED_PX
 
 constexpr size_t CHUNK_SIZE = 16;
-constexpr float GRAVITY = 1.981;  // in
+constexpr float GRAVITY = 9.81;  // in
 
 enum class ParticleType : uint8_t { VOID_ = 0, SAND = 1, WALL = 2 };
 
@@ -27,13 +27,22 @@ struct Chunk {
 
 struct Collision {
   int2 last_free;  /// Last free spot found by the line drawing algorithm
-  int2 collider;  /// Same as last_free if no collision occured.
-
-  __host__ __device__ Collision(int2 last_free_, int2 collider_)
-      : last_free(last_free_), collider(collider_) {}
+  int2 collider_pos;  /// Same as last_free if no collision occured.
+  Particle* collider;
+  __host__ __device__ Collision() = default;
+  __host__ __device__ Collision(int2 last_free_, int2 collider_pos, Particle* collider)
+      : last_free(last_free_), collider_pos(collider_pos), collider(collider) {}
   __host__ __device__ bool collided() {
-    return !(last_free.x == collider.x && last_free.y == collider.y);
+    return !(last_free.x == collider_pos.x && last_free.y == collider_pos.y);
   }
+};
+
+struct Collision_velocity_response {
+  float2 part1_velocity;
+  float2 part2_velocity;
+  __host__ __device__ static Collision_velocity_response calc_response(
+      Particle& first,
+      Particle& second);
 };
 
 class Simulation {
@@ -67,7 +76,8 @@ class Simulation {
 
   /**
    * \brief Method synchronising data from cpu to gpu buffor.
-   * Remember to synchronise gpu threads from simulation, and collecting data before that operation.
+   * Remember to synchronise gpu threads from simulation, and collecting data before that
+   * operation.
    */
   void synchronise_to_gpu();
 
@@ -102,4 +112,5 @@ __device__ __host__ Collision
 find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constraints);
 
 __global__ static void simulation_kernel(Chunk* chunks, int2 dims, int time_ms);
-__device__ __host__ Collision find_collision(Chunk* chunks, int2 dims, int2 from, int2 to);
+__device__ __host__ Collision
+find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, const ulong2 max_constrains);
