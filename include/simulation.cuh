@@ -33,7 +33,7 @@ struct Collision {
   __host__ __device__ Collision(int2 last_free_, int2 collider_pos, Particle* collider)
       : last_free(last_free_), collider_pos(collider_pos), collider(collider) {}
   __host__ __device__ bool collided() {
-    return !(last_free.x == collider_pos.x && last_free.y == collider_pos.y);
+    return !(last_free.x == collider_pos.x && last_free.y == collider_pos.y) && collider != nullptr;
   }
 };
 
@@ -111,6 +111,6 @@ __host__ __device__ Particle& get_particle(Chunk* chunks, int2 dims, int2 coord)
 __device__ __host__ Collision
 find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, int2 max_constraints);
 
-__global__ static void simulation_kernel(Chunk* chunks, int2 dims, int time_ms);
+__global__ static void simulation_kernel(Chunk* chunks, int2 dims, float time_ms);
 __device__ __host__ Collision
 find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, const ulong2 max_constrains);
