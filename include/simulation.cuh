@@ -33,7 +33,7 @@ struct Collision {
   __host__ __device__ Collision(int2 last_free_, int2 collider_pos, Particle* collider)
       : last_free(last_free_), collider_pos(collider_pos), collider(collider) {}
   __host__ __device__ bool collided() {
-    return !(last_free.x == collider_pos.x && last_free.y == collider_pos.y);
+    return !(last_free.x == collider_pos.x && last_free.y == collider_pos.y) && collider != nullptr;
   }
 };
 

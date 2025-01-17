@@ -213,8 +213,8 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, int2 offset, int2 st
           auto vy = particle.velocity.y + time * GRAVITY;
           // clamp so that no races occur between chunks
           // TODO także przekopiować opór jeśli trzeba
-          particle.velocity.x = clamp(vx, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
-          particle.velocity.y = clamp(vy, -((float)CHUNK_SIZE) / 2, ((float)CHUNK_SIZE) / 2);
+          particle.velocity.x = clamp(vx, -((float)CHUNK_SIZE), ((float)CHUNK_SIZE));
+          particle.velocity.y = clamp(vy, -((float)CHUNK_SIZE), ((float)CHUNK_SIZE));
         }
       }
       // sync threads for all warps to finish, and apply changes
@@ -260,8 +260,8 @@ find_collision(Chunk* chunks, int2 dims, int2 from, int2 to, const ulong2 max_co
       ptr.y += sy;
     }
 
-    // if ((ptr.x < 0 || ptr.x >= max_constrains.x) || (ptr.y < 0 || ptr.y >= max_constrains.y))
-    //   break;
+    if ((ptr.x < 0 || ptr.x >= max_constrains.x) || (ptr.y < 0 || ptr.y >= max_constrains.y))
+      break;
 
     if ((Part = &get_particle(chunks, dims, ptr))->type != ParticleType::VOID_) {
       return Collision{last_free, ptr, Part};
