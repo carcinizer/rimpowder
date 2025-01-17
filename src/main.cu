@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
     // SIMULATION RELATED STUFF END
     main_window.draw();
     std::cout << "dt: " << dt << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    // std::this_thread::sleep_for(std::chrono::milliseconds(30));
   }
   std::cout << "donna" << std::endl;
 
