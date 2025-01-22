@@ -1,5 +1,6 @@
 #include <cuda_device_runtime_api.h>
 #include <cuda_runtime.h>
+#include <device_atomic_functions.h>
 #include <cassert>
 #include <iostream>
 #include "common.cuh"
@@ -63,7 +64,7 @@ reflect_normal(const float2 in_vector, const float2 collision_normal, const floa
   // float normal_qsrt =
   // Q_rsqrt(collision_normal.x * collision_normal.x + collision_normal.y * collision_normal.y);
 
-  x_dir -= 1 * x_dir * collision_normal.x * collision_normal.x * normal_qsrt + 0.5;
+  x_dir -= 1 * x_dir * collision_normal.x * collision_normal.x * normal_qsrt + 0.2;
   y_dir -= 1 * y_dir * collision_normal.y * collision_normal.y * normal_qsrt;
 
   return float2{x_dir, y_dir};
@@ -134,11 +135,6 @@ Simulation::Simulation(std::string& types_filename)
   checkCudaErrors(cudaMalloc(&dev_chunks, sizeof(Chunk) * dims.x * dims.y));
   checkCudaErrors(
       cudaMemcpy(dev_chunks, cpu_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyHostToDevice));
-#ifdef DEBUG_DRAW_VISITED_PX
-  checkCudaErrors(cudaMalloc(&dummy_buffor_visited_device, sizeof(uint32_t) * xs * ys));
-  checkCudaErrors(cudaMemset(dummy_buffor_visited_device, 0, sizeof(uint32_t) * xs * ys));
-#endif
-  // delete[] cpu_chunks;
   delete[] char_buffer;
 }
 
@@ -146,18 +142,12 @@ __device__ inline float clamp(float in, float min, float max) {
   return fminf(max, fmaxf(min, in));
 }
 
-#ifdef DEBUG_DRAW_VISITED_PX
-__global__ void simulation_kernel(
-    Chunk* chunks,
-    int2 dims,
-    float time_ms,
-    uint32_t* debug_buff)
-#else
 __global__ void simulation_kernel(Chunk* chunks, int2 dims, float time_ms)
-#endif
 {
-  const uint2 particle_pos{blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y};
-  if (particle_pos.x >= dims.x * CHUNK_SIZE || particle_pos.y >= dims.y * CHUNK_SIZE) return;
+  const uint2 particle_pos{
+      blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y};
+  if (particle_pos.x >= dims.x * CHUNK_SIZE || particle_pos.y >= dims.y * CHUNK_SIZE)
+    return;
 
   const float time = time_ms / 1000.0f;
   const ulong2 max_sim_pos = {dims.x * CHUNK_SIZE, dims.y * CHUNK_SIZE};
@@ -165,21 +155,13 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, float time_ms)
 
   int2 pos = int2{int(particle_pos.x), int(particle_pos.y)};
 
-#ifdef DEBUG_DRAW_VISITED_PX
-  int chunk_x = pos.x / CHUNK_SIZE;
-  int chunk_y = pos.y / CHUNK_SIZE;
-  int x_within_chunk = pos.x % CHUNK_SIZE;
-  int y_within_chunk = pos.y % CHUNK_SIZE;
-  debug_buff[(chunk_y * dims.x * CHUNK_SIZE + chunk_x + y_within_chunk) * CHUNK_SIZE + x_within_chunk] = 0xFF0000FF;
-#endif
-
   Collision collision{};
   auto& particle = get_particle(chunks, dims, pos);
+  float2 pos_from = particle.pos;
 
   if (particle.type == ParticleType::SAND) {
     float2 to_f{
-        particle.pos.x + time * particle.velocity.x,
-        particle.pos.y + time * particle.velocity.y};
+        particle.pos.x + time * particle.velocity.x, particle.pos.y + time * particle.velocity.y};
     to_f.x = clamp(to_f.x, 0, (float)max_sim_pos.x);
     to_f.y = clamp(to_f.y, 0, (float)max_sim_pos.y);
 
@@ -189,7 +171,8 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, float time_ms)
 
     if (collision.collided()) {
       particle.pos = float2{0.5f + collision.last_free.x, 0.5f + collision.last_free.y};
-      const auto response = Collision_velocity_response::calc_response(particle, *collision.collider);
+      const auto response =
+          Collision_velocity_response::calc_response(particle, *collision.collider);
       particle.velocity = response.part1_velocity;
       second_obj_vel = response.part2_velocity;
     } else {
@@ -205,11 +188,21 @@ __global__ void simulation_kernel(Chunk* chunks, int2 dims, float time_ms)
   if (collision.collider)
     collision.collider->velocity = second_obj_vel;
 
-  __syncthreads();
-  if (particle.type == ParticleType::SAND) {
-    auto dummy2 = particle;
+  //__syncthreads();
+  // syncthreads() does work on block scope. Since we have grid situation here, we need global sync
+  // on a variable. Thats why atomicCAS is used. It does acces the global memory and make sure, new
+  // place is free to be moved to.
+
+  Particle& target_cell = get_particle(chunks, dims, collision.last_free);
+  if (atomicCAS(
+          (unsigned int*)(&(target_cell.type)), (unsigned int)ParticleType::VOID_,
+          (unsigned int)ParticleType::SAND) == (unsigned int)ParticleType::VOID_) {
+    // copy ourself to new particle
+    auto particle_copy = particle;
+    // set target pos cell
+    target_cell = particle_copy;
+    // clear previous cell
     particle.type = ParticleType::VOID_;
-    get_particle(chunks, dims, collision.last_free) = dummy2;
   }
 }
 
@@ -264,40 +257,31 @@ void Simulation::step(uint32_t time_ms) {
       (unsigned)(dims.x * CHUNK_SIZE + block_size.x - 1) / block_size.x,
       (unsigned)(dims.y * CHUNK_SIZE + block_size.y - 1) / block_size.y, 1};
 
-#ifdef DEBUG_DRAW_VISITED_PX
-  simulation_kernel<<<grid_size, block_size>>>(dev_chunks, dims, time_ms, dummy_buffor_visited_device);
-#else
   simulation_kernel<<<grid_size, block_size>>>(dev_chunks, dims, time_ms);
-#endif
   checkCudaErrors(cudaGetLastError());
   cudaDeviceSynchronize();
-  std::cout << std::endl;
 }
 
-void Simulation::save(std::string& filename) const {
+void Simulation::save(const std::string& filename) const {
   unsigned xs = dims.x * CHUNK_SIZE;
   unsigned ys = dims.y * CHUNK_SIZE;
   uint32_t* color_buffer = new uint32_t[xs * ys];
 
-  Chunk* host_chunks = new Chunk[dims.x * dims.y];
-  checkCudaErrors(
-      cudaMemcpy(host_chunks, dev_chunks, sizeof(Chunk) * dims.x * dims.y, cudaMemcpyDeviceToHost));
-
   // this discards the const qualifier
   // make cpu_chunks mutable?
-  // collect_from_gpu();
+  collect_from_gpu();
 
   for (int y = 0; y < ys; y++) {
     for (int x = 0; x < xs; x++) {
       int2 coord{x, y};
-      uint32_t color = get_particle(host_chunks, dims, coord).to_rgba();
+      uint32_t color = get_particle(cpu_chunks, dims, coord).to_rgba();
       color_buffer[y * xs + x] = color;
     }
   }
 
-  stbi_write_png(filename.c_str(), xs, ys, 4, color_buffer, xs * sizeof(uint32_t));
+  if (!stbi_write_png(filename.c_str(), xs, ys, 4, color_buffer, xs * sizeof(uint32_t)))
+    std::cout << "couldnt write simulation png file! (" << filename << ")" << std::endl;
 
-  delete[] host_chunks;
   delete[] color_buffer;
 }
 
@@ -324,15 +308,6 @@ void Simulation::put_pixel_data(uint32_t* buff) const {
     }
   }
 }
-
-#ifdef DEBUG_DRAW_VISITED_PX
-void Simulation::put_visited_pixel_data(uint32_t* buff) const {
-  ulong2 sizes = simulation_pixel_size();
-  cudaMemcpy(
-      buff, dummy_buffor_visited_device, sizes.x * sizes.y * sizeof(uint32_t),
-      cudaMemcpyDeviceToHost);
-}
-#endif
 
 ulong2 Simulation::simulation_pixel_size() const {
   return {(unsigned long)(dims.x * CHUNK_SIZE), (unsigned long)(dims.y * CHUNK_SIZE)};
