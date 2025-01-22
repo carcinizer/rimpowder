@@ -51,12 +51,12 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\include;$(ProjectDir)..\project_window_ctx\include;$(ProjectDir)..\deps\stb;$(ProjectDir)..\..\cuda-samples\common;$(ProjectDir)..\..\sdl_vs_lib\SDL3\include</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\include;$(ProjectDir)..\deps\stb;$(ProjectDir)..\..\cuda-samples\common;$(ProjectDir)..\project_window_ctx\include;$(ProjectDir)..\..\sdl_vs_lib\SDL3\include</IncludePath>
     <LibraryPath>$(ProjectDir)..\..\cuda-samples\common\lib\x64;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
     <SourcePath>$(VC_SourcePath);$(ProjectDir)..\project_window_ctx\src</SourcePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\include;$(ProjectDir)..\deps\stb;$(ProjectDir)..\..\cuda-samples\common</IncludePath>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectDir)..\include;$(ProjectDir)..\deps\stb;$(ProjectDir)..\..\cuda-samples\common;$(ProjectDir)..\project_window_ctx\include;$(ProjectDir)..\..\sdl_vs_lib\SDL3\include</IncludePath>
     <LibraryPath>$(ProjectDir)..\..\cuda-samples\common\lib\x64;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -98,7 +98,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Console</SubSystem>
       <AdditionalDependencies>cudart_static.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies);SDL3.lib</AdditionalDependencies>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir);$(ProjectDir)..\..\cuda-samples\bin\win64\Release</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories);$(CudaToolkitLibDir));$(ProjectDir)..\..\sdl_vs_lib\SDL3\lib\x64</AdditionalLibraryDirectories>
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
@@ -107,7 +107,7 @@
       <Defines>SDL_IMPL</Defines>
     </CudaCompile>
     <PostBuildEvent>
-      <Command>copy /Y "$(ProjectDir)..\..\cuda-samples\bin\win64\Release\freeglut.dll" "$(TargetDir)"</Command>
+      <Command>copy /Y "$(ProjectDir)..\..\sdl_vs_lib\SDL3\lib\x64\SDL3.dll" "$(TargetDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
