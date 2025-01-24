@@ -8,7 +8,7 @@
 constexpr size_t CHUNK_SIZE = 16;
 constexpr float GRAVITY = 9.81;  // in
 
-enum class ParticleType : uint8_t { VOID_ = 0, SAND = 1, WALL = 2 };
+enum class ParticleType : unsigned int { VOID_ = 0, SAND = 1, WALL = 2 };
 
 struct Particle {
   ParticleType type;
@@ -67,7 +67,7 @@ class Simulation {
    * state into given file. it does convert chung data into pixel values defined in simulation.h
    * \param filename simulation file path to save simulation state.
    */
-  void save(std::string& filename) const;
+  void save(const std::string& filename) const;
 
   /**
    * \brief Method collecting data from gpu to cpu buffor.
